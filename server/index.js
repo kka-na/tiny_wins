@@ -1,10 +1,13 @@
 import express from 'express'
 import cors from 'cors'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { read, findById, insert, update, remove } from './db.js'
 import crypto from 'crypto'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT || 2229
 
 app.use(cors())
 app.use(express.json())
@@ -259,6 +262,13 @@ app.delete('/api/reset/:userId', (req, res) => {
   res.json({ ok: true })
 })
 
-app.listen(PORT, () => {
-  console.log(`Tiny Wins API running on http://localhost:${PORT}`)
+// 프로덕션: dist 정적 파일 서빙
+const distPath = path.join(__dirname, '..', 'dist')
+app.use(express.static(distPath))
+app.get('*', (req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'))
+})
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Tiny Wins running on http://0.0.0.0:${PORT}`)
 })
