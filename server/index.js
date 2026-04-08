@@ -265,7 +265,7 @@ app.delete('/api/reset/:userId', (req, res) => {
 // 프로덕션: dist 정적 파일 서빙
 const distPath = path.join(__dirname, '..', 'dist')
 app.use(express.static(distPath))
-app.get('*', (req, res) => {
+app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(distPath, 'index.html'))
 })
 
