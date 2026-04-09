@@ -38,6 +38,11 @@ export const api = {
     request('/api/records', { method: 'POST', body: JSON.stringify({ set_id, date, completed_habits }) }),
   getRecords: (setId) => request(`/api/records/${setId}`),
 
+  // Diaries
+  saveDiary: (diary) =>
+    request('/api/diaries', { method: 'POST', body: JSON.stringify(diary) }),
+  getDiaries: (setId) => request(`/api/diaries/${setId}`),
+
   // Progress (겨루기)
   getProgress: (userId) => request(`/api/progress/${userId}`),
 

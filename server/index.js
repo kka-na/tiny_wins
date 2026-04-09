@@ -231,6 +231,41 @@ app.post('/api/friends', (req, res) => {
   res.status(201).json(friendship)
 })
 
+// --- Diaries ---
+app.post('/api/diaries', (req, res) => {
+  const { set_id, date, highlight, emotion, habit_reflection, tomorrow_intention } = req.body
+  const diaries = read('diaries')
+  const existing = diaries.find((d) => d.set_id === set_id && d.date === date)
+
+  if (existing) {
+    const updated = update('diaries', existing.id, {
+      highlight, emotion, habit_reflection, tomorrow_intention,
+      updated_at: new Date().toISOString(),
+    })
+    return res.json(updated)
+  }
+
+  const diary = insert('diaries', {
+    id: uuid(),
+    set_id,
+    date,
+    highlight: highlight || '',
+    emotion: emotion || '',
+    habit_reflection: habit_reflection || '',
+    tomorrow_intention: tomorrow_intention || '',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  })
+  res.status(201).json(diary)
+})
+
+app.get('/api/diaries/:setId', (req, res) => {
+  const diaries = read('diaries')
+    .filter((d) => d.set_id === req.params.setId)
+    .sort((a, b) => b.date.localeCompare(a.date))
+  res.json(diaries)
+})
+
 // --- Reset ---
 app.delete('/api/reset/:userId', (req, res) => {
   const userId = req.params.userId
@@ -246,6 +281,10 @@ app.delete('/api/reset/:userId', (req, res) => {
   // 기록 삭제
   const allRecords = read('records')
   write('records', allRecords.filter((r) => !setIds.includes(r.set_id)))
+
+  // 일기 삭제
+  const allDiaries = read('diaries')
+  write('diaries', allDiaries.filter((d) => !setIds.includes(d.set_id)))
 
   // 셋 삭제
   const allSets = read('habit_sets')

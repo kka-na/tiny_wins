@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { Settings, Check, Calendar } from 'lucide-react'
+import { Settings, Check, Calendar, BookOpen } from 'lucide-react'
 import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useUserStore } from '../stores/useUserStore'
 import { useHabitStore } from '../stores/useHabitStore'
@@ -20,6 +20,19 @@ const FRUITS = [
 ]
 
 const allFruitImages = import.meta.glob('../assets/fruit_frames/**/*.png', { eager: true, import: 'default' })
+
+const DIARY_EXAMPLES = [
+  { highlight: '저녁 운동 건너뜀', reflection: '퇴근이 늦어 피로가 쌓였던 게 원인', intention: '내일은 점심에 짧게라도 움직이기' },
+  { highlight: '집중이 잘 됐던 하루', reflection: '오전에 카페인 없이 시작한 게 도움된 것 같음', intention: '이 패턴 유지해보기' },
+  { highlight: '독서 30분 완료', reflection: '자기 전 폰 대신 책을 집어든 게 효과적', intention: '내일도 폰은 침대 밖에 두기' },
+  { highlight: '식단이 무너졌음', reflection: '점심 약속이 변수였고 선택지가 없었음', intention: '외식 예정일엔 저녁을 가볍게 조정하기' },
+  { highlight: '명상 빠짐', reflection: '아침이 바빠서 미뤘다가 그냥 넘어감', intention: '내일은 일어나자마자 2분만이라도 하기' },
+  { highlight: '글쓰기 잘 됐음', reflection: '조용한 오전 시간이 확보된 게 컸음', intention: '오전 집중 블록 지키는 것 계속하기' },
+  { highlight: '잠을 늦게 잠', reflection: '유튜브를 멍하니 보다 놓쳤음', intention: '11시에 폰 알람 설정해두기' },
+  { highlight: '물 마시기 잘 지킴', reflection: '책상에 텀블러를 미리 꺼내둔 덕분', intention: '내일도 아침에 바로 세팅하기' },
+  { highlight: '계획했던 공부 절반만 함', reflection: '중간에 다른 일이 끼어들었고 집중이 흐트러짐', intention: '내일은 방해 차단 앱 켜두기' },
+  { highlight: '하루가 빠르게 지나간 느낌', reflection: '의도 없이 흘려보낸 탓', intention: '내일 아침 딱 한 가지 우선순위 정하고 시작하기' },
+]
 
 function getPhase(startDate) {
   const start = new Date(startDate)
@@ -126,7 +139,8 @@ const STAGE_INFO = {
 export default function Dashboard() {
   const navigate = useNavigate()
   const user = useUserStore((s) => s.user)
-  const { currentSet, habits, records, setRecords } = useHabitStore()
+  const setUser = useUserStore((s) => s.setUser)
+  const { currentSet, habits, records, diaries, setHabits, setRecords, setDiaries } = useHabitStore()
 
   const [displayDays, setDisplayDays] = useState(10)
   const [showRecordModal, setShowRecordModal] = useState(false)
@@ -140,8 +154,16 @@ export default function Dashboard() {
   const [newHabitName, setNewHabitName] = useState('')
   const [newHabitType, setNewHabitType] = useState('S-R')
   const [checkedHabits, setCheckedHabits] = useState([])
+  const [recordDate, setRecordDate] = useState(() => new Date().toISOString().split('T')[0])
   const [saving, setSaving] = useState(false)
-  const [selectedFruit, setSelectedFruit] = useState(() => localStorage.getItem('tiny_wins_fruit') || 'strawberry')
+  const selectedFruit = user?.fruit || localStorage.getItem('tiny_wins_fruit') || 'strawberry'
+  const [showDiaryModal, setShowDiaryModal] = useState(false)
+  const [diaryExample, setDiaryExample] = useState(null)
+  const [diaryHighlight, setDiaryHighlight] = useState('')
+  const [diaryReflection, setDiaryReflection] = useState('')
+  const [diaryIntention, setDiaryIntention] = useState('')
+  const [diaryDate, setDiaryDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [diarySaving, setDiarySaving] = useState(false)
   const scrollRef = useRef(null)
 
   const phase = currentSet ? getPhase(currentSet.start_date) : { day: 1, total: 35, prefix: 's1' }
@@ -190,8 +212,61 @@ export default function Dashboard() {
 
   // 모달 열 때 오늘 기록 반영
   function openRecordModal() {
+    setRecordDate(todayStr)
     setCheckedHabits([...completedToday])
     setShowRecordModal(true)
+  }
+
+  function handleRecordDateChange(dateStr) {
+    setRecordDate(dateStr)
+    const existing = records.find((r) => r.date === dateStr)
+    setCheckedHabits(existing ? [...existing.completed_habits] : [])
+  }
+
+  // 일기 로드
+  useEffect(() => {
+    if (currentSet) {
+      api.getDiaries(currentSet.id).then(setDiaries).catch(() => {})
+    }
+  }, [currentSet])
+
+  function openDiaryModal() {
+    setDiaryDate(todayStr)
+    const existing = diaries.find((d) => d.date === todayStr)
+    setDiaryHighlight(existing?.highlight || '')
+    setDiaryReflection(existing?.habit_reflection || '')
+    setDiaryIntention(existing?.tomorrow_intention || '')
+    setDiaryExample(DIARY_EXAMPLES[Math.floor(Math.random() * DIARY_EXAMPLES.length)])
+    setShowDiaryModal(true)
+  }
+
+  function handleDiaryDateChange(dateStr) {
+    setDiaryDate(dateStr)
+    const existing = diaries.find((d) => d.date === dateStr)
+    setDiaryHighlight(existing?.highlight || '')
+    setDiaryReflection(existing?.habit_reflection || '')
+    setDiaryIntention(existing?.tomorrow_intention || '')
+  }
+
+  async function handleDiarySave() {
+    if (!currentSet) return
+    setDiarySaving(true)
+    try {
+      await api.saveDiary({
+        set_id: currentSet.id,
+        date: diaryDate,
+        highlight: diaryHighlight,
+        emotion: '',
+        habit_reflection: diaryReflection,
+        tomorrow_intention: diaryIntention,
+      })
+      const updated = await api.getDiaries(currentSet.id)
+      setDiaries(updated)
+      setShowDiaryModal(false)
+    } catch (e) {
+      console.error(e)
+    }
+    setDiarySaving(false)
   }
 
   function toggleHabit(habitId) {
@@ -238,7 +313,7 @@ export default function Dashboard() {
     if (!currentSet) return
     setSaving(true)
     try {
-      await api.saveRecord(currentSet.id, todayStr, checkedHabits)
+      await api.saveRecord(currentSet.id, recordDate, checkedHabits)
       const updated = await api.getRecords(currentSet.id)
       setRecords(updated)
       setShowRecordModal(false)
@@ -297,9 +372,11 @@ export default function Dashboard() {
                     <button
                       key={f.key}
                       onClick={() => {
-                        setSelectedFruit(f.key)
                         localStorage.setItem('tiny_wins_fruit', f.key)
-                        if (user) api.updateUser(user.user_id, { fruit: f.key })
+                        if (user) {
+                          api.updateUser(user.user_id, { fruit: f.key })
+                          setUser({ ...user, fruit: f.key })
+                        }
                         setShowFruitPicker(false)
                       }}
                       className={`text-xl w-9 h-9 rounded-lg flex items-center justify-center transition ${
@@ -434,14 +511,22 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* 오늘의 습관 기록 버튼 */}
-        <button
-          onClick={openRecordModal}
-          className={`w-full py-3 px-4 rounded-xl font-semibold shadow-sm transition flex items-center justify-center gap-2 ${theme.point1} ${theme.point1Text}`}
-        >
-          <Calendar size={18} />
-          오늘의 습관 기록 ({completedToday.length}/{habits.length})
-        </button>
+        {/* 오늘의 습관 기록 + 일기 버튼 (4:1) */}
+        <div className="flex gap-2">
+          <button
+            onClick={openRecordModal}
+            className={`flex-[4] py-3 px-4 rounded-xl font-semibold shadow-sm transition flex items-center justify-center gap-2 ${theme.point1} ${theme.point1Text}`}
+          >
+            <Calendar size={18} />
+            습관 기록 ({completedToday.length}/{habits.length})
+          </button>
+          <button
+            onClick={openDiaryModal}
+            className={`flex-[1] py-3 rounded-xl font-semibold shadow-sm transition flex items-center justify-center ${theme.point1} ${theme.point1Text} opacity-80`}
+          >
+            <BookOpen size={18} />
+          </button>
+        </div>
 
         {/* 뇌 과학 팁 (10일 뷰에서만) */}
         {displayDays === 10 && <div className={`${theme.cardBg} rounded-xl shadow-sm p-4 border border-charcoal/5 space-y-3`}>
@@ -476,9 +561,30 @@ export default function Dashboard() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-charcoal">
-                {today.toLocaleDateString('ko-KR')}
-              </h2>
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    const input = document.getElementById('record-date-input')
+                    if (input) { input.showPicker ? input.showPicker() : input.focus() }
+                  }}
+                  className="text-lg font-bold text-charcoal flex items-center gap-1.5 hover:opacity-70 transition"
+                >
+                  {new Date(recordDate + 'T00:00:00').toLocaleDateString('ko-KR')}
+                  <span className="text-xs text-charcoal/40">▼</span>
+                </button>
+                {recordDate !== todayStr && (
+                  <span className="text-[10px] text-charcoal/40 block">지난 기록 수정 중</span>
+                )}
+                <input
+                  id="record-date-input"
+                  type="date"
+                  value={recordDate}
+                  min={currentSet?.start_date}
+                  max={todayStr}
+                  onChange={(e) => handleRecordDateChange(e.target.value)}
+                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                />
+              </div>
               <button onClick={() => setShowRecordModal(false)} className="text-2xl text-charcoal/30">
                 ×
               </button>
@@ -692,6 +798,87 @@ export default function Dashboard() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      , document.body)}
+
+      {/* 일기 작성 모달 */}
+      {showDiaryModal && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={() => setShowDiaryModal(false)} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
+          <div
+            className="bg-cream w-full rounded-t-2xl shadow-2xl p-6 max-h-[85vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    const input = document.getElementById('diary-date-input')
+                    if (input) { input.showPicker ? input.showPicker() : input.focus() }
+                  }}
+                  className="text-lg font-bold text-charcoal flex items-center gap-1.5 hover:opacity-70 transition"
+                >
+                  {new Date(diaryDate + 'T00:00:00').toLocaleDateString('ko-KR')} 일기
+                  <span className="text-xs text-charcoal/40">▼</span>
+                </button>
+                {diaryDate !== todayStr && (
+                  <span className="text-[10px] text-charcoal/40 block">지난 일기 수정 중</span>
+                )}
+                <input
+                  id="diary-date-input"
+                  type="date"
+                  value={diaryDate}
+                  min={currentSet?.start_date}
+                  max={todayStr}
+                  onChange={(e) => handleDiaryDateChange(e.target.value)}
+                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                />
+              </div>
+              <button onClick={() => setShowDiaryModal(false)} className="text-2xl text-charcoal/30">×</button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="relative">
+                <span className="absolute left-3 top-2 text-[10px] font-medium pointer-events-none" style={{ color: theme.point2Hex }}>무슨일</span>
+                <textarea
+                  value={diaryHighlight}
+                  onChange={(e) => setDiaryHighlight(e.target.value)}
+                  placeholder={diaryExample?.highlight || '오늘 가장 인상적이었던 일'}
+                  className="w-full px-3 pt-6 pb-2.5 rounded-lg border border-charcoal/10 bg-white text-sm text-charcoal placeholder:text-charcoal/15 focus:outline-none resize-none"
+                  rows={2}
+                />
+              </div>
+
+              <div className="relative">
+                <span className="absolute left-3 top-2 text-[10px] font-medium pointer-events-none" style={{ color: theme.point2Hex }}>습관 회고</span>
+                <input
+                  type="text"
+                  value={diaryReflection}
+                  onChange={(e) => setDiaryReflection(e.target.value)}
+                  placeholder={diaryExample?.reflection || '잘 됐거나 안 된 이유 한 줄'}
+                  className="w-full px-3 pt-6 pb-2 rounded-lg border border-charcoal/10 bg-white text-sm text-charcoal placeholder:text-charcoal/15 focus:outline-none"
+                />
+              </div>
+
+              <div className="relative">
+                <span className="absolute left-3 top-2 text-[10px] font-medium pointer-events-none" style={{ color: theme.point2Hex }}>내일</span>
+                <input
+                  type="text"
+                  value={diaryIntention}
+                  onChange={(e) => setDiaryIntention(e.target.value)}
+                  placeholder={diaryExample?.intention || '내일 실행할 구체적인 의도 하나'}
+                  className="w-full px-3 pt-6 pb-2 rounded-lg border border-charcoal/10 bg-white text-sm text-charcoal placeholder:text-charcoal/15 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={handleDiarySave}
+              disabled={diarySaving}
+              className={`w-full mt-4 py-3 rounded-xl font-semibold transition ${theme.point1} ${theme.point1Text} disabled:opacity-50`}
+            >
+              {diarySaving ? '저장 중...' : '저장'}
+            </button>
           </div>
         </div>
       , document.body)}

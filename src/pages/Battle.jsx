@@ -16,6 +16,17 @@ function getDayNumber(startDate) {
   return Math.min(Math.floor((today - start) / (1000 * 60 * 60 * 24)) + 1, 35)
 }
 
+const PHASE_BG = { s1: 'bg-[#F0C3C4]', s2: 'bg-[#C2DEE9]', s3: 'bg-[#a7c4d4]', s4: 'bg-[#5B3054]', s5: 'bg-[#4a2745]' }
+
+function getPrefix(startDate) {
+  const day = Math.floor((new Date() - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1
+  if (day <= 7) return 's1'
+  if (day <= 14) return 's2'
+  if (day <= 21) return 's3'
+  if (day <= 28) return 's4'
+  return 's5'
+}
+
 export default function Battle({ embedded = false }) {
   const navigate = useNavigate()
   const user = useUserStore((s) => s.user)
@@ -120,8 +131,8 @@ export default function Battle({ embedded = false }) {
   }
 
   return (
-    <div className="min-h-screen bg-cream pb-20">
-      <header className="sticky top-0 z-40 bg-cream border-b border-charcoal/10">
+    <div className={`min-h-screen ${currentSet ? PHASE_BG[getPrefix(currentSet.start_date)] : 'bg-cream'} transition-colors duration-500 pb-20`}>
+      <header className={`sticky top-0 z-40 ${currentSet ? PHASE_BG[getPrefix(currentSet.start_date)] : 'bg-cream'} border-b border-black/10`}>
         <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
           {!embedded && (
             <button onClick={() => navigate('/dashboard', { replace: true })} className="text-charcoal/50 text-sm">
@@ -236,21 +247,12 @@ export default function Battle({ embedded = false }) {
 
             <p className="text-[10px] text-charcoal/30 text-center">습관 내용 및 개수는 비공개입니다</p>
 
-            {/* 상대 변경 / 해제 */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowFriendInput(true)}
-                className="flex-1 py-2.5 rounded-xl bg-charcoal/5 text-charcoal/50 text-xs font-medium"
-              >
-                상대 변경
-              </button>
-              <button
-                onClick={() => { setFriendProgress(null); localStorage.removeItem('tiny_wins_battle_friend') }}
-                className="flex-1 py-2.5 rounded-xl bg-charcoal/5 text-red-400 text-xs font-medium"
-              >
-                해제
-              </button>
-            </div>
+            <button
+              onClick={() => setShowFriendInput(true)}
+              className="w-full py-2.5 rounded-xl bg-charcoal/5 text-charcoal/50 text-xs font-medium"
+            >
+              상대 변경
+            </button>
           </div>
         )}
       </main>
